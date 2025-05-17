@@ -1,0 +1,10 @@
+FROM nginx:alpine
+
+# 1) Copy your pre-built static files into nginx’s html folder
+COPY frontend/dist/ /usr/share/nginx/html
+
+# 2) Expose port 80 (the default nginx port)
+EXPOSE 80
+
+# 3) Run nginx in the foreground
+CMD ["nginx", "-g", "daemon off;"]
