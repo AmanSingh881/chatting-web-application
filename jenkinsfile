@@ -1,55 +1,77 @@
 pipeline {
     agent any
-    
-    environment {
-        AWS_ACCOUNT_ID="804906270331"
-        AWS_DEFAULT_REGION="ap-south-1"
-        IMAGE_REPO_NAME="ispock/dev"
-        IMAGE_TAG="${BUILD_NUMBER}"
-        REPOSITORY_URI = "804906270331.dkr.ecr.ap-south-1.amazonaws.com/ispock/dev"
-    }
-    
-    
     tools {
         nodejs 'node24'               // Must match the name you set in Global Tool Config
       }
+      
+    environment{
+        IMAGE_TAG="${BUILD_NUMBER}"
+        
+        FRONTEND_IMAGE_REPO_NAME=credentials("frontendImageRepoName")
+        BACKEND_IMAGE_REPO_NAME=credentials("backendImageRepoName")
+        
+        AWS_DEFAULT_REGION=credentials("awsDefaultRegion")
+
+        AWS_ACCOUNT_ID=credentials('awsAccountId')
+
+        
+        BACKEND_REPOSITORY_URI=credentials("backendECRuri")
+        FRONTEND_REPOSITORY_URI=credentials("frontendECRuri")
+    }
 
     stages {
-        stage('Git checkout') {
+        
+        stage('Build') {
             steps {
                 // Get some code from a GitHub repository
                 git url: 'https://github.com/AmanSingh881/chatting-web-application.git', branch: "main"
-                sh "ls -a"
             }
         }
         
-        stage('Build it') {
-            steps {
-                sh "npm install"
-                sh "npm run build"
-            }
+        stage('Build the application') {
+                steps {
+                    dir('frontend') {
+                        sh 'npm install'
+                        sh 'npm run build'
+                            }
+                    dir('backend') {
+                        sh 'npm install'
+                            }
+                      }
+            
         }
         
         stage('Docker Image') {
               steps {
-                sh 'docker build -t ${IMAGE_REPO_NAME}:${IMAGE_TAG} .'
+                  dir('frontend') {
+                        sh 'docker build -t ${FRONTEND_IMAGE_REPO_NAME}:${IMAGE_TAG} .'
+                            }
+                  dir('backend') {
+                        sh 'docker build -t ${BACKEND_IMAGE_REPO_NAME}:${IMAGE_TAG} .'
+                            }
+                
               }
             }
-        
         
         stage('Pushing to ECR') {
          steps{  
              script {
-                    sh """
+                    sh '''
                         aws ecr get-login-password --region ${AWS_DEFAULT_REGION} \
                           | docker login \
                               --username AWS \
                               --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com
-                    """
-                    sh """docker tag ${IMAGE_REPO_NAME}:${IMAGE_TAG} ${REPOSITORY_URI}:$IMAGE_TAG"""
-                    sh """docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}"""
+                    '''
+                    sh """docker tag ${FRONTEND_IMAGE_REPO_NAME}:${IMAGE_TAG} ${FRONTEND_REPOSITORY_URI}:$IMAGE_TAG"""
+                    sh """docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${FRONTEND_IMAGE_REPO_NAME}:${IMAGE_TAG}"""
+                    
+                    
+                    sh """docker tag ${BACKEND_IMAGE_REPO_NAME}:${IMAGE_TAG} ${BACKEND_REPOSITORY_URI}:$IMAGE_TAG"""
+                    sh """docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${BACKEND_IMAGE_REPO_NAME}:${IMAGE_TAG}"""
              }
             }
           }
+        
+        
     }
 }
